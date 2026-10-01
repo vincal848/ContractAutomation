@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# VBA import into the VBE expects CRLF line endings.
+*.bas text eol=crlf
+
+*.xlsx binary
+*.docx binary
+*.pdf binary
+*.png binary

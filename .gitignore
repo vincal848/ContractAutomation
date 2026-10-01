@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Excel lock files created while a workbook is open
+~$*.xlsx
+
+# Macro-enabled workbooks are produced locally by importing src/*.bas and
+# saving as .xlsm -- see README.md Setup. Not committed.
+*.xlsm
+
+# TransferToWordTemplate's generated contracts
+output/
