@@ -20,11 +20,8 @@ valid VBA), and the one that does compile fills the right bookmarks for the
 first contract row and silently empties ones for every row after it, because
 it reuses a single open Word document across the whole loop.
 
-![Original chart output, with the chart bug described below](docs/img/result_image_sample.png)
-*The screenshot this repository's sample data is reconstructed from. The
-legend reads "Net Profit $40,000.00" and "Revenue Growth (%) N/A" instead of
-the column headers, and the chart only plots 8 of the 12 months in the table
-above it -- both symptoms of the `SetSourceData` bug described below.*
+![Original chart output](docs/img/result_image_sample.png)
+*The screenshot this repository's sample data is reconstructed from.*
 
 ## At a glance
 
@@ -59,61 +56,6 @@ copies its first sheet's data into `RawData`, then calls `CalculateMetrics`
 `TransferToWordTemplate` opens the template named in `TemplateInfo!B1`,
 fills its bookmarks from each `RawData` row, and saves one contract per row
 into the folder named in `TemplateInfo!B2`.
-
-## What was wrong
-
-**Both draft modules define subs with the same names.** `TransferToWordTemplate`
-and `AutomateFinancialReporting` exist in both `legacy/Financial_report_module.bas`
-and `legacy/finautomation_templateexceltoword.bas`. Importing both into one
-workbook raises "ambiguous name detected" and neither can run. Fixed by
-keeping one module, `src/ReportAutomation.bas`
-(`tests/test_bas_lint.py::test_no_duplicate_sub_or_function_names`).
-
-**The improved draft does not compile.** `AutomateFinancialReporting` uses
-`Continue Do` to skip to the next `DataSources` row, which is a VB.NET/C#
-construct that does not exist in VBA. Fixed with a `GoTo` to a loop-end label,
-which is the idiomatic VBA way to skip an iteration
-(`tests/test_bas_lint.py::test_no_continue_do_which_is_not_valid_vba`).
-
-**`TransferToWordTemplate` only ever fills the first contract.** It opens one
-Word document before the loop and reuses it for every row. A bookmark's
-`Range` collapses to its filled text the moment it is written, so rows after
-the first find the bookmarks already consumed; `SaveAs2` then just writes
-copies of row one's contract under different file names. Fixed by creating a
-fresh `Documents.Add(Template:=templatePath)` per row.
-
-**The DataSources row counter is really the RawData row counter.**
-`AutomateFinancialReporting` reads the next source path with
-`wsSources.Cells(currentRow, 1)`, where `currentRow` tracks the next free row
-in `RawData`. A source workbook that contributes anything other than exactly
-one row desyncs the two sheets, so later paths are skipped or re-read. Fixed
-with two independent counters, `sourceRow` and `destRow`.
-
-**`ListObjects.Add` fails on a second run.** It always adds a new table,
-which raises "a table already exists on this worksheet" once one is already
-there. Fixed by unlisting any existing table in `FormatSummaryReport` before
-adding a fresh one.
-
-**Revenue growth divides by zero.** `CalculateMetrics` divides by the
-previous row's revenue with no check for zero. Fixed by writing `"N/A"`
-(`None` in the Python mirror) whenever the previous revenue is zero, the same
-way the macro already handles the first row
-(`tests/test_metrics.py::test_zero_previous_revenue_gives_none_instead_of_dividing_by_zero`).
-
-**The chart mislabels its own series.** `CreateCharts` calls `SetSourceData`
-on a hardcoded `Range("A1:B10")` with no `PlotBy` argument. Because both
-columns hold numbers, Excel's own guess at rows-vs-columns is unreliable: the
-screenshot above shows the first data row's values used as legend text
-("Net Profit $40,000.00", "Revenue Growth (%) N/A") instead of the header
-row, and the hardcoded `B10` only ever covered 9 of the 12 months. Fixed by
-reading the real last row, passing `PlotBy:=xlColumns` explicitly, and naming
-each series from its header cell.
-
-**Hardcoded paths.** `C:\Path\To\Your\Template.docx`, `C:\Path\To\Save\Output.docx`,
-and `C:\Contracts\` are all literal strings in the originals. Fixed by reading
-the template path and output folder from `TemplateInfo!B1` / `!B2`, and
-creating the output folder if it does not exist
-(`tests/test_bas_lint.py::test_no_hardcoded_c_drive_paths`).
 
 ## Setup
 
